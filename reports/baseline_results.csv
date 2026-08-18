@@ -1,0 +1,2 @@
+model,test_weeks,wape,mae,bias,test_rows
+Seasonal Naive,12,0.41432369871606284,8.708,72370.0,60000

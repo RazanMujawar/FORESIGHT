@@ -1,0 +1,6 @@
+{
+    "selected_model":"LightGBM",
+    "lightgbm_wape":0.2780620677,
+    "seasonal_naive_wape":0.3708550686,
+    "improvement_pct":25.0213651503
+}
