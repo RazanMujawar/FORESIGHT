@@ -12,6 +12,15 @@ import streamlit as st
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+DEPLOYMENT_DIR = PROJECT_ROOT / "deployment_data"
+
+# Use deployment artifacts when available.
+# Otherwise use the locally generated processed datasets.
+DATA_DIR = (
+    DEPLOYMENT_DIR
+    if DEPLOYMENT_DIR.exists()
+    else PROCESSED_DIR
+)
 
 
 # ============================================================
@@ -34,11 +43,11 @@ st.set_page_config(
 def load_data():
 
     risk_df = pd.read_parquet(
-        PROCESSED_DIR / "risk_scoring.parquet"
+    DATA_DIR / "risk_scoring.parquet"
     )
 
     predictions_df = pd.read_parquet(
-        PROCESSED_DIR / "validation_predictions.parquet"
+        DATA_DIR / "validation_predictions.parquet"
     )
 
     predictions_df["week_start"] = pd.to_datetime(
