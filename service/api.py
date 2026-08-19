@@ -11,6 +11,13 @@ from fastapi import FastAPI, HTTPException
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+DEPLOYMENT_DIR = PROJECT_ROOT / "deployment_data"
+
+DATA_DIR = (
+    DEPLOYMENT_DIR
+    if DEPLOYMENT_DIR.exists()
+    else PROCESSED_DIR
+)
 
 
 # ============================================================
@@ -32,7 +39,7 @@ app = FastAPI(
 # ============================================================
 
 RISK_FILE = (
-    PROCESSED_DIR / "risk_scoring.parquet"
+    DATA_DIR / "risk_scoring.parquet"
 )
 
 
