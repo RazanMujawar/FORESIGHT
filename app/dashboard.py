@@ -22,6 +22,7 @@ st.set_page_config(
     page_title="FORESIGHT",
     page_icon="📦",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 
@@ -33,13 +34,11 @@ st.set_page_config(
 def load_data():
 
     risk_df = pd.read_parquet(
-        PROCESSED_DIR
-        / "risk_scoring.parquet"
+        PROCESSED_DIR / "risk_scoring.parquet"
     )
 
     predictions_df = pd.read_parquet(
-        PROCESSED_DIR
-        / "validation_predictions.parquet"
+        PROCESSED_DIR / "validation_predictions.parquet"
     )
 
     predictions_df["week_start"] = pd.to_datetime(
@@ -52,27 +51,33 @@ def load_data():
 risk, predictions = load_data()
 
 
-
 # ============================================================
 # HEADER
 # ============================================================
 
-st.title("FORESIGHT")
+st.title("📦 FORESIGHT")
+
 st.subheader(
     "Inventory Intelligence & Demand Forecasting"
 )
 
+latest_week = predictions["week_start"].max()
+
 st.caption(
-    "AI-assisted demand forecasting and inventory "
-    "risk monitoring"
+    f"Data / forecast period: {latest_week.strftime('%d %b %Y')} "
+    f"• Forecast horizon: 4 weeks"
 )
 
 
 # ============================================================
-# SIDEBAR FILTERS
+# SIDEBAR
 # ============================================================
 
-st.sidebar.header("Filters")
+st.sidebar.title("FORESIGHT")
+
+st.sidebar.markdown(
+    "### 🔎 Dashboard Filters"
+)
 
 categories = sorted(
     risk["category"]
@@ -83,7 +88,8 @@ categories = sorted(
 selected_categories = st.sidebar.multiselect(
     "Category",
     categories,
-    default=categories
+    default=categories,
+    help="Filter the dashboard by product category."
 )
 
 risk_options = sorted(
@@ -95,9 +101,27 @@ risk_options = sorted(
 selected_risks = st.sidebar.multiselect(
     "Risk",
     risk_options,
-    default=risk_options
+    default=risk_options,
+    help="Filter the dashboard by inventory-risk category."
 )
 
+st.sidebar.markdown("---")
+
+st.sidebar.info(
+    """
+    **📘 Need help?**
+
+    Use the **Guide** page in the navigation
+    menu for detailed instructions, risk
+    definitions, KPI explanations, forecasting
+    methodology and data limitations.
+    """
+)
+
+
+# ============================================================
+# FILTER DATA
+# ============================================================
 
 filtered = risk[
     risk["category"].isin(
@@ -111,8 +135,10 @@ filtered = risk[
 
 
 # ============================================================
-# KPI CARDS
+# EXECUTIVE OVERVIEW
 # ============================================================
+
+st.markdown("## Executive Overview")
 
 total_skus = len(filtered)
 
@@ -134,6 +160,23 @@ overstock_count = (
     .sum()
 )
 
+healthy_count = (
+    filtered["risk"]
+    .eq("HEALTHY")
+    .sum()
+)
+
+inventory_available = (
+    filtered["inventory_data_available"]
+    .sum()
+)
+
+inventory_coverage = (
+    inventory_available / total_skus * 100
+    if total_skus > 0
+    else 0
+)
+
 stockout_exposure = (
     filtered["stockout_exposure"]
     .sum()
@@ -145,36 +188,65 @@ excess_value = (
 )
 
 
-col1, col2, col3, col4, col5 = st.columns(5)
+# ============================================================
+# KPI TABLE
+# ============================================================
 
-col1.metric(
-    "SKUs",
-    f"{total_skus:,}"
-)
+kpi_data = pd.DataFrame({
+    "Metric": [
+        "Total SKUs",
+        "🔴 Stockout Risk",
+        "🟡 Watch",
+        "🔵 Overstock",
+        "🟢 Healthy",
+        "💰 Stockout Exposure",
+        "📦 Inventory Coverage",
+    ],
 
-col2.metric(
-    "Stockout Risk",
-    f"{stockout_count:,}"
-)
+    "Value": [
+        f"{total_skus:,}",
+        f"{stockout_count:,}",
+        f"{watch_count:,}",
+        f"{overstock_count:,}",
+        f"{healthy_count:,}",
+        f"₹{stockout_exposure:,.0f}",
+        f"{inventory_coverage:.1f}%",
+    ],
 
-col3.metric(
-    "Watch",
-    f"{watch_count:,}"
-)
+    "Description": [
+        "Products monitored",
+        "Immediate attention",
+        "Review required",
+        "Excess inventory",
+        "Within acceptable range",
+        "Estimated stockout exposure",
+        "SKUs with inventory data",
+    ]
+})
 
-col4.metric(
-    "Overstock",
-    f"{overstock_count:,}"
-)
-
-col5.metric(
-    "Stockout Exposure",
-    f"₹{stockout_exposure:,.0f}"
+st.dataframe(
+    kpi_data,
+    use_container_width=True,
+    hide_index=True,
+    column_config={
+        "Metric": st.column_config.TextColumn(
+            "Metric",
+            width="medium"
+        ),
+        "Value": st.column_config.TextColumn(
+            "Value",
+            width="medium"
+        ),
+        "Description": st.column_config.TextColumn(
+            "What it means",
+            width="large"
+        ),
+    }
 )
 
 
 # ============================================================
-# RISK DISTRIBUTION
+# RISK + FINANCIAL EXPOSURE
 # ============================================================
 
 st.markdown("---")
@@ -203,13 +275,14 @@ with left:
         risk_counts,
         x="risk",
         y="count",
-        title="SKUs by Risk Category",
         text="count",
+        title="SKUs by Risk Category",
     )
 
     fig.update_layout(
-        xaxis_title="Risk",
+        xaxis_title="",
         yaxis_title="SKUs",
+        showlegend=False,
     )
 
     st.plotly_chart(
@@ -221,7 +294,7 @@ with left:
 with right:
 
     st.subheader(
-        "Inventory Value Exposure"
+        "Financial Exposure"
     )
 
     exposure_data = pd.DataFrame({
@@ -229,6 +302,7 @@ with right:
             "Stockout Exposure",
             "Excess Inventory"
         ],
+
         "Value": [
             stockout_exposure,
             excess_value
@@ -239,20 +313,20 @@ with right:
         exposure_data,
         x="Metric",
         y="Value",
-        title="Financial Exposure",
         text="Value",
+        title="Estimated Financial Impact",
     )
 
     fig.update_layout(
         xaxis_title="",
         yaxis_title="₹",
+        showlegend=False,
     )
 
     st.plotly_chart(
         fig,
         use_container_width=True
     )
-
 
 
 # ============================================================
@@ -263,6 +337,12 @@ st.markdown("---")
 
 st.subheader(
     "Inventory Decisioning Grid"
+)
+
+st.caption(
+    "Higher stockout pressure indicates potential demand "
+    "shortage; higher overstock pressure indicates excess "
+    "inventory relative to the 4-week forecast."
 )
 
 grid_data = filtered.copy()
@@ -293,10 +373,9 @@ fig = px.scatter(
     ],
     title="Stockout vs Overstock Pressure",
     labels={
-        "stockout_pressure":
-            "Stockout Pressure",
-        "overstock_pressure":
-            "Overstock Pressure",
+        "stockout_pressure": "Stockout Pressure",
+        "overstock_pressure": "Overstock Pressure",
+        "risk": "Risk",
     },
 )
 
@@ -323,7 +402,11 @@ st.plotly_chart(
 st.markdown("---")
 
 st.subheader(
-    "Top Stockout Risks"
+    "🔴 Top Stockout Risks"
+)
+
+st.caption(
+    "Prioritized by estimated stockout exposure."
 )
 
 stockout_table = (
@@ -363,7 +446,11 @@ st.dataframe(
 st.markdown("---")
 
 st.subheader(
-    "Top Overstock / Slow-Moving SKUs"
+    "🔵 Top Overstock / Slow-Moving SKUs"
+)
+
+st.caption(
+    "Prioritized by estimated excess inventory value."
 )
 
 overstock_table = (
@@ -397,14 +484,130 @@ st.dataframe(
 
 
 # ============================================================
+# SKU ANALYSIS
+# ============================================================
+
+st.markdown("---")
+
+st.header("SKU Analysis")
+
+sku_list = sorted(
+    filtered["sku_id"]
+    .dropna()
+    .unique()
+)
+
+if sku_list:
+
+    selected_sku = st.selectbox(
+        "Select SKU",
+        sku_list,
+        help="Select an individual SKU for detailed analysis."
+    )
+
+    sku_row = filtered[
+        filtered["sku_id"]
+        == selected_sku
+    ].iloc[0]
+
+    # --------------------------------------------------------
+    # SKU DETAILS
+    # --------------------------------------------------------
+
+    st.subheader("SKU Details")
+
+    sku_details = pd.DataFrame({
+        "Field": [
+            "SKU",
+            "Product",
+            "Category",
+            "Subcategory",
+            "Brand",
+            "Risk",
+            "Recommended Action",
+        ],
+
+        "Value": [
+            sku_row["sku_id"],
+            sku_row["sku_name"],
+            sku_row["category"],
+            sku_row["subcategory"],
+            sku_row["brand"],
+            sku_row["risk"],
+            sku_row["recommended_action"],
+        ]
+    })
+
+    st.dataframe(
+        sku_details,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # --------------------------------------------------------
+    # INVENTORY METRICS
+    # --------------------------------------------------------
+
+    st.subheader("Demand & Inventory Position")
+
+    inventory_details = pd.DataFrame({
+        "Metric": [
+            "Forecast Demand / Week",
+            "4-Week Forecast Demand",
+            "Inventory Position",
+            "Weeks of Cover",
+            "Reorder Point",
+            "Safety Stock",
+        ],
+
+        "Value": [
+            f"{sku_row['forecast_weekly_demand']:,.2f}",
+            f"{sku_row['forecast_horizon_demand']:,.2f}",
+            f"{sku_row['inventory_position']:,.0f}",
+            f"{sku_row['weeks_of_cover']:,.2f}",
+            f"{sku_row['reorder_point']:,.0f}",
+            f"{sku_row['safety_stock']:,.0f}",
+        ]
+    })
+
+    st.dataframe(
+        inventory_details,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # --------------------------------------------------------
+    # FINANCIAL IMPACT
+    # --------------------------------------------------------
+
+    st.subheader("Financial Impact")
+
+    financial_details = pd.DataFrame({
+        "Metric": [
+            "Stockout Exposure",
+            "Excess Inventory Value",
+        ],
+
+        "Value": [
+            f"₹{sku_row['stockout_exposure']:,.2f}",
+            f"₹{sku_row['excess_inventory_value']:,.2f}",
+        ]
+    })
+
+    st.dataframe(
+        financial_details,
+        use_container_width=True,
+        hide_index=True
+    )
+
+
+# ============================================================
 # FORECAST VS ACTUAL
 # ============================================================
 
 st.markdown("---")
 
-st.subheader(
-    "Forecast vs Actual Demand"
-)
+st.header("Forecast vs Actual Demand")
 
 selected_forecast_sku = st.selectbox(
     "Select SKU for forecast comparison",
@@ -413,7 +616,8 @@ selected_forecast_sku = st.selectbox(
         .dropna()
         .unique()
     ),
-    key="forecast_sku"
+    key="forecast_sku",
+    help="Compare historical demand with the model forecast."
 )
 
 sku_forecast = predictions[
@@ -424,8 +628,8 @@ sku_forecast = predictions[
 if sku_forecast.empty:
 
     st.info(
-        "No validation forecast history "
-        "is available for this SKU."
+        "No validation forecast history is available "
+        "for this SKU."
     )
 
 else:
@@ -443,9 +647,10 @@ else:
         ],
         markers=True,
         labels={
-            "value": "Units",
+            "units_sold": "Actual Demand",
+            "prediction": "LightGBM Forecast",
             "week_start": "Week",
-            "variable": "Series"
+            "value": "Units",
         },
         title=(
             f"Actual vs LightGBM Forecast — "
@@ -464,80 +669,12 @@ else:
 
 
 # ============================================================
-# SKU DRILL DOWN
-# ============================================================
-
-st.markdown("---")
-
-st.subheader(
-    "SKU Drill-Down"
-)
-
-sku_list = sorted(
-    filtered["sku_id"]
-    .dropna()
-    .unique()
-)
-
-selected_sku = st.selectbox(
-    "Select SKU",
-    sku_list
-)
-
-sku_row = filtered[
-    filtered["sku_id"]
-    == selected_sku
-].iloc[0]
-
-
-col1, col2, col3, col4 = st.columns(4)
-
-col1.metric(
-    "SKU",
-    sku_row["sku_id"]
-)
-
-col2.metric(
-    "Forecast / Week",
-    f"{sku_row['forecast_weekly_demand']:.1f}"
-)
-
-col3.metric(
-    "Inventory",
-    f"{sku_row['inventory_position']:,.0f}"
-)
-
-col4.metric(
-    "Weeks of Cover",
-    f"{sku_row['weeks_of_cover']:.1f}"
-)
-
-
-st.write(
-    f"**Product:** {sku_row['sku_name']}"
-)
-
-st.write(
-    f"**Category:** {sku_row['category']}"
-)
-
-st.write(
-    f"**Risk:** {sku_row['risk']}"
-)
-
-st.write(
-    f"**Recommended Action:** "
-    f"{sku_row['recommended_action']}"
-)
-
-
-# ============================================================
 # FOOTER
 # ============================================================
 
 st.markdown("---")
 
 st.caption(
-    "FORESIGHT — Demand Forecasting & Inventory Risk "
-    "Intelligence | Prototype"
+    "FORESIGHT • Demand Forecasting & Inventory Risk Intelligence "
+    "• Prototype"
 )
